@@ -20,7 +20,8 @@ import {
   Lock,
   Minus,
   Plus,
-  TrendingDown
+  TrendingDown,
+  ArrowLeft
 } from 'lucide-react';
 import {
   Radar,
@@ -178,20 +179,39 @@ export default function Dashboard() {
       <div className="w-full flex-1 max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8 space-y-8">
         
         {/* Cabeçalho */}
+        {/* Cabeçalho */}
         <header className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-6 rounded-3xl bg-slate-900/50 border border-slate-800/80 backdrop-blur-xl shadow-2xl overflow-hidden">
           <div className="absolute -top-16 -left-16 w-56 h-56 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
           
-          <div className="relative z-10 flex items-center gap-3">
-            <span className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 shadow-inner">
-              <TrendingUp className="w-7 h-7" />
-            </span>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-                AlphaScreen B3
-              </h1>
-              <p className="text-slate-400 text-xs md:text-sm font-medium">
-                Terminal Quantitativo & Screening Fundamentalista B3
-              </p>
+          <div className="relative z-10 flex items-center gap-4">
+            {/* Botão Voltar para Home */}
+            <button
+              onClick={() => navigate('/')}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-950/80 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white text-xs font-semibold transition-all active:scale-95"
+              title="Voltar para a página inicial"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden md:inline">Início</span>
+            </button>
+
+            <div className="h-8 w-px bg-slate-800/80 hidden sm:block" />
+
+            {/* Logo Clicável */}
+            <div 
+              onClick={() => navigate('/')}
+              className="flex items-center gap-3 cursor-pointer group"
+            >
+              <span className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 shadow-inner group-hover:border-emerald-500/50 transition-colors">
+                <TrendingUp className="w-7 h-7" />
+              </span>
+              <div>
+                <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent group-hover:to-white transition-all">
+                  AlphaScreen B3
+                </h1>
+                <p className="text-slate-400 text-xs md:text-sm font-medium">
+                  Terminal Quantitativo & Screening Fundamentalista B3
+                </p>
+              </div>
             </div>
           </div>
 
