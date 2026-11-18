@@ -1,14 +1,28 @@
 import React from 'react';
 import { Crown, Check, ArrowLeft, Shield, Zap, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { ativarPlanoPro } from '../service/Api';
 
 export default function ProPricing() {
   const navigate = useNavigate();
 
-  const handleSubscribe = () => {
-    // Simula a ativação do plano e redireciona de volta com privilégio Pro
-    localStorage.setItem('@alphascreen:isPro', 'true');
-    navigate('/?upgraded=true');
+  const handleSubscribe = async () => {
+    const token = localStorage.getItem('@alphascreen:token');
+    if (!token) {
+      navigate('/login?redirect=/pro');
+      return;
+    }
+
+    try {
+      const response = await ativarPlanoPro();
+      // Atualiza o novo token contendo ROLE_PRO no localStorage
+      localStorage.setItem('@alphascreen:token', response.token);
+      localStorage.setItem('@alphascreen:isPro', String(response.isPro));
+      navigate('/radar');
+    } catch (err) {
+      alert('Sua sessão expirou. Faça login novamente para ativar o plano.');
+      navigate('/login?redirect=/pro');
+    }
   };
 
   return (
