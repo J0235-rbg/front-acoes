@@ -21,7 +21,9 @@ import {
   Minus,
   Plus,
   TrendingDown,
-  ArrowLeft
+  ArrowLeft,
+  UserIcon,
+  LogOut
 } from 'lucide-react';
 import {
   Radar,
@@ -31,7 +33,7 @@ import {
   PolarRadiusAxis,
   ResponsiveContainer
 } from 'recharts';
-import { getRanking, getRaioX, sincronizar } from '../service/Api';
+import { getRanking, getRaioX, sincronizar, getPerfilAtual } from '../service/Api';
 import { type StockRanking, type StrategyType } from '../types/Stock';
 
 export default function Dashboard() {
@@ -49,6 +51,40 @@ export default function Dashboard() {
   const [isPro, setIsPro] = useState<boolean>(() => {
     return localStorage.getItem('@alphascreen:isPro') === 'true';
   });
+
+  const [user, setUser] = useState<{ nome: string; email: string } | null>(() => {
+    const saved = localStorage.getItem('@alphascreen:user');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  // Valida a sessão com o backend ao abrir o terminal
+  useEffect(() => {
+    const token = localStorage.getItem('@alphascreen:token');
+    if (!token) return;
+
+    getPerfilAtual()
+      .then((perfil) => {
+        setIsPro(perfil.isPro);
+        setUser({ nome: perfil.nome, email: perfil.email });
+        localStorage.setItem('@alphascreen:isPro', String(perfil.isPro));
+      })
+      .catch(() => {
+        // Se o token expirou ou for inválido, limpa a sessão silenciosamente
+        handleLogout(false);
+      });
+  }, []);
+
+  const handleLogout = (redirect = true) => {
+    localStorage.removeItem('@alphascreen:token');
+    localStorage.removeItem('@alphascreen:isPro');
+    localStorage.removeItem('@alphascreen:user');
+    setUser(null);
+    setIsPro(false);
+    setStrategy('buffett');
+    if (redirect) {
+      navigate('/login');
+    }
+  };
 
   const carregarRanking = async (tipo: StrategyType, qtd: number) => {
     setLoading(true);
@@ -178,25 +214,23 @@ export default function Dashboard() {
       {/* Conteúdo Principal */}
       <div className="w-full flex-1 max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8 space-y-8">
         
-        {/* Cabeçalho */}
-        {/* Cabeçalho */}
-        <header className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-6 rounded-3xl bg-slate-900/50 border border-slate-800/80 backdrop-blur-xl shadow-2xl overflow-hidden">
+       {/* Cabeçalho Completo */}
+        <header className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6 p-6 rounded-3xl bg-slate-900/50 border border-slate-800/80 backdrop-blur-xl shadow-2xl overflow-hidden">
           <div className="absolute -top-16 -left-16 w-56 h-56 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
           
+          {/* Lado Esquerdo: Voltar + Logo */}
           <div className="relative z-10 flex items-center gap-4">
-            {/* Botão Voltar para Home */}
             <button
               onClick={() => navigate('/')}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-950/80 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white text-xs font-semibold transition-all active:scale-95"
               title="Voltar para a página inicial"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span className="hidden md:inline">Início</span>
+              <span className="hidden sm:inline">Início</span>
             </button>
 
             <div className="h-8 w-px bg-slate-800/80 hidden sm:block" />
 
-            {/* Logo Clicável */}
             <div 
               onClick={() => navigate('/')}
               className="flex items-center gap-3 cursor-pointer group"
@@ -215,28 +249,59 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="relative z-10 flex items-center gap-3">
+          {/* Lado Direito: Status Pro + Sincronizar + Usuário/Logout */}
+          <div className="relative z-10 flex flex-wrap items-center gap-3">
             {isPro ? (
               <span className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500/10 border border-amber-500/30 text-amber-400">
-                <Crown className="w-4 h-4 fill-amber-400" /> Membro Pro Ativo
+                <Crown className="w-4 h-4 fill-amber-400" /> Pro Ativo
               </span>
             ) : (
               <button
                 onClick={() => navigate('/pro')}
-                className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 px-4 py-2 rounded-xl text-xs font-black transition-all shadow-lg shadow-amber-950/40 active:scale-95"
+                className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-black transition-all shadow-lg shadow-amber-950/40 active:scale-95"
               >
-                <Crown className="w-4 h-4 fill-slate-950" /> Fazer Upgrade Pro
+                <Crown className="w-4 h-4 fill-slate-950" /> Upgrade Pro
               </button>
             )}
 
             <button
               onClick={handleSync}
               disabled={syncing}
-              className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-xs font-semibold transition-all active:scale-95"
+              className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 disabled:opacity-50 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-all active:scale-95"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-emerald-400' : ''}`} />
-              {syncing ? 'Atualizando...' : 'Sincronizar'}
+              <span className="hidden sm:inline">{syncing ? 'Atualizando...' : 'Sincronizar'}</span>
             </button>
+
+            <div className="h-6 w-px bg-slate-800 hidden sm:block" />
+
+            {user ? (
+              <div className="flex items-center gap-2 pl-2 pr-1.5 py-1 rounded-xl bg-slate-950/90 border border-slate-800">
+                <div className="flex items-center gap-2 text-xs">
+                  <div className="w-6 h-6 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                    {user.nome.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="font-semibold text-slate-200 max-w-[100px] truncate">
+                    {user.nome.split(' ')[0]}
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => handleLogout(true)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
+                  title="Sair da conta"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => navigate('/login')}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition-colors"
+              >
+                <UserIcon className="w-3.5 h-3.5" /> Entrar
+              </button>
+            )}
           </div>
         </header>
 
