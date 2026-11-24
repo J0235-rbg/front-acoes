@@ -62,3 +62,8 @@ export const sincronizar = async (tipo: 'java' | 'python' = 'java'): Promise<str
   const { data } = await api.post<string>(`/acoes/sincronizar-${tipo}`);
   return data;
 };
+
+export const criarCheckoutPro = async (): Promise<string> => {
+  const { data } = await api.post<{checkoutUrl: string }>('/pagamentos/checkout');
+  return data.checkoutUrl;
+}
