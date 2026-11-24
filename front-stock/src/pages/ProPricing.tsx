@@ -1,7 +1,7 @@
 import React from 'react';
 import { Crown, Check, ArrowLeft, Shield, Zap, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { ativarPlanoPro } from '../service/Api';
+import { ativarPlanoPro, criarCheckoutPro } from '../service/Api';
 
 export default function ProPricing() {
   const navigate = useNavigate();
@@ -14,13 +14,11 @@ export default function ProPricing() {
     }
 
     try {
-      const response = await ativarPlanoPro();
-      // Atualiza o novo token contendo ROLE_PRO no localStorage
-      localStorage.setItem('@alphascreen:token', response.token);
-      localStorage.setItem('@alphascreen:isPro', String(response.isPro));
-      navigate('/radar');
+      const checkoutUrl = await criarCheckoutPro();
+      // Redireciona para a tela de pagamento do Mercado Pago (PIX / Cartão)
+      window.location.href = checkoutUrl;
     } catch (err) {
-      alert('Sua sessão expirou. Faça login novamente para ativar o plano.');
+      alert('Erro ao iniciar pagamento. Verifique se sua sessão está ativa.');
       navigate('/login?redirect=/pro');
     }
   };
