@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Crown, Check, ArrowLeft, Shield, Zap, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { ativarPlanoPro, criarCheckoutPro } from '../service/Api';
+import { ativarPlanoPro, criarCheckoutPro, getPerfilAtual } from '../service/Api';
 
 export default function ProPricing() {
   const navigate = useNavigate();
+
+  const [aguardandoPagamento, setAguardandoPagamento] = useState(false);
 
   const handleSubscribe = async () => {
     const token = localStorage.getItem('@alphascreen:token');
@@ -15,8 +17,25 @@ export default function ProPricing() {
 
     try {
       const checkoutUrl = await criarCheckoutPro();
-      // Redireciona para a tela de pagamento do Mercado Pago (PIX / Cartão)
-      window.location.href = checkoutUrl;
+      // Redireciona para a tela de pagamento do Mercado Pago em uma nova tela (PIX / Cartão)
+      window.open(checkoutUrl, '_blank');
+      setAguardandoPagamento(true);
+      // Inicia a verificação automatica a cada 3 segundos no backend
+      const interval = setInterval(async () => {
+        try{
+          const perfil = await getPerfilAtual();
+          if(perfil.isPro){
+            clearInterval(interval);
+            localStorage.setItem('@alphascreen:isPro', 'true');
+            navigate('/radar?pagamento=sucesso');
+          }
+        } catch {
+          // ignora erros trasitórios de rede durante a verificação
+        }
+      }, 3000);
+      // Para o polling após 10 segundos por segurança 
+      setTimeout(() => clearInterval(interval), 600000);
+      
     } catch (err: any) {
       const msg = err.response?.data?.erro || 'Erro ao iniciar pagamento. Verifique o console do backend';
       alert(msg);
