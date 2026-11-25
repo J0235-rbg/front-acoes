@@ -17,9 +17,9 @@ export default function ProPricing() {
       const checkoutUrl = await criarCheckoutPro();
       // Redireciona para a tela de pagamento do Mercado Pago (PIX / Cartão)
       window.location.href = checkoutUrl;
-    } catch (err) {
-      alert('Erro ao iniciar pagamento. Verifique se sua sessão está ativa.');
-      navigate('/login?redirect=/pro');
+    } catch (err: any) {
+      const msg = err.response?.data?.erro || 'Erro ao iniciar pagamento. Verifique o console do backend';
+      alert(msg);
     }
   };
 
