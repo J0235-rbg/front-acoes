@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   TrendingUp, 
   ShieldCheck, 
@@ -97,6 +97,20 @@ export default function Dashboard() {
       setLoading(false);
     }
   };
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const pagamentoSucesso = searchParams.get('pagamento') === 'sucesso';
+
+  useEffect(() => {
+    if(pagamentoSucesso){
+      // limpa o parâmetro da URL após 6 segundos
+      const timer = setTimeout(() => {
+        searchParams.delete('pagamento');
+        setSearchParams(searchParams, { replace: true});
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [pagamentoSucesso]);
 
   useEffect(() => {
     carregarRanking(strategy, limit);
@@ -306,6 +320,11 @@ export default function Dashboard() {
         </header>
 
         {/* Live KPIs */}
+              {pagamentoSucesso && (
+                  <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm font-semibold flex items-center justify-between animate-fade-in">
+                    <span>🎉 Pagamento confirmado! Seu acesso Pro às estratégias de Graham, Bazin e Greenblatt já está liberado.</span>
+                  </div>
+                  )}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="p-5 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-md flex items-center justify-between">
             <div>
