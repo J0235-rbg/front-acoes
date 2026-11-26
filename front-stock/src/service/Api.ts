@@ -67,3 +67,13 @@ export const criarCheckoutPro = async (): Promise<string> => {
   const { data } = await api.post<{checkoutUrl: string }>('/pagamentos/checkout');
   return data.checkoutUrl;
 }
+
+export const getFavoritos = async (): Promise<string[]> => {
+  const { data } = await api.get<string[]>('/favoritos');
+  return data;
+}
+
+export const toggleFavorito = async (ticker: string): Promise<{ ticker: string; favoritado: boolean }> => {
+  const { data } = await api.post<{ ticker: string; favoritado: boolean }>(`/favoritos/${ticker}/toggle`);
+  return data;
+}
