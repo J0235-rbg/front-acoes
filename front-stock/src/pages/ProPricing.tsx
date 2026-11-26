@@ -48,7 +48,7 @@ export default function ProPricing() {
         
         {/* Botão de retorno para o terminal */}
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/radar')}
           className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-semibold p-2.5 rounded-xl hover:bg-slate-900 w-fit border border-slate-800/80"
         >
           <ArrowLeft className="w-4 h-4" /> Voltar ao Terminal Free
