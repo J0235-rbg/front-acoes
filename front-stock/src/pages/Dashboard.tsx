@@ -23,7 +23,8 @@ import {
   TrendingDown,
   ArrowLeft,
   UserIcon,
-  LogOut
+  LogOut,
+  Star
 } from 'lucide-react';
 import {
   Radar,
@@ -33,7 +34,7 @@ import {
   PolarRadiusAxis,
   ResponsiveContainer
 } from 'recharts';
-import { getRanking, getRaioX, sincronizar, getPerfilAtual } from '../service/Api';
+import { getRanking, getRaioX, sincronizar, getPerfilAtual, getFavoritos, toggleFavorito } from '../service/Api';
 import { type StockRanking, type StrategyType } from '../types/Stock';
 
 export default function Dashboard() {
@@ -69,7 +70,6 @@ export default function Dashboard() {
         localStorage.setItem('@alphascreen:isPro', String(perfil.isPro));
       })
       .catch(() => {
-        // Se o token expirou ou for inválido, limpa a sessão silenciosamente
         handleLogout(false);
       });
   }, []);
@@ -102,11 +102,10 @@ export default function Dashboard() {
   const pagamentoSucesso = searchParams.get('pagamento') === 'sucesso';
 
   useEffect(() => {
-    if(pagamentoSucesso){
-      // limpa o parâmetro da URL após 6 segundos
+    if (pagamentoSucesso) {
       const timer = setTimeout(() => {
         searchParams.delete('pagamento');
-        setSearchParams(searchParams, { replace: true});
+        setSearchParams(searchParams, { replace: true });
       }, 6000);
       return () => clearTimeout(timer);
     }
@@ -115,6 +114,47 @@ export default function Dashboard() {
   useEffect(() => {
     carregarRanking(strategy, limit);
   }, [strategy, limit]);
+
+  const [favoritos, setFavoritos] = useState<string[]>(() => {
+    const saved = localStorage.getItem('@alphascreen:favoritos');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [apenasFavoritos, setApenasFavoritos] = useState<boolean>(false);
+
+  // Carrega favoritos do banco se o usuário estiver logado
+  useEffect(() => {
+    const token = localStorage.getItem('@alphascreen:token');
+    if (!token) return;
+
+    getFavoritos()
+      .then((lista) => {
+        setFavoritos(lista);
+        localStorage.setItem('@alphascreen:favoritos', JSON.stringify(lista));
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleToggleFavorito = async (e: React.MouseEvent, ticker: string) => {
+    e.stopPropagation();
+
+    const jaFavorito = favoritos.includes(ticker);
+    const novaLista = jaFavorito
+      ? favoritos.filter((t) => t !== ticker)
+      : [...favoritos, ticker];
+
+    setFavoritos(novaLista);
+    localStorage.setItem('@alphascreen:favoritos', JSON.stringify(novaLista));
+
+    const token = localStorage.getItem('@alphascreen:token');
+    if (token) {
+      try {
+        await toggleFavorito(ticker);
+      } catch {
+        setFavoritos(favoritos);
+      }
+    }
+  };
 
   const handleSync = async () => {
     setSyncing(true);
@@ -147,12 +187,14 @@ export default function Dashboard() {
     }
   };
 
+  // Filtra por busca textual e pela opção "Apenas Favoritas"
   const filteredStocks = useMemo(() => {
-    if (!searchTerm.trim()) return stocks;
-    return stocks.filter(s => 
-      s.ticker.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [stocks, searchTerm]);
+    return stocks.filter((s) => {
+      const matchesSearch = !searchTerm.trim() || s.ticker.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesFav = !apenasFavoritos || favoritos.includes(s.ticker);
+      return matchesSearch && matchesFav;
+    });
+  }, [stocks, searchTerm, apenasFavoritos, favoritos]);
 
   const kpis = useMemo(() => {
     if (!stocks.length) return { mediaDY: 0, mediaROE: 0, aprovadas: 0 };
@@ -228,7 +270,7 @@ export default function Dashboard() {
       {/* Conteúdo Principal */}
       <div className="w-full flex-1 max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8 space-y-8">
         
-       {/* Cabeçalho Completo */}
+        {/* Cabeçalho Completo */}
         <header className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6 p-6 rounded-3xl bg-slate-900/50 border border-slate-800/80 backdrop-blur-xl shadow-2xl overflow-hidden">
           <div className="absolute -top-16 -left-16 w-56 h-56 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
           
@@ -319,12 +361,14 @@ export default function Dashboard() {
           </div>
         </header>
 
+        {/* Banner de Confirmação Pro */}
+        {pagamentoSucesso && (
+          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm font-semibold flex items-center justify-between animate-fade-in">
+            <span>🎉 Pagamento confirmado! Seu acesso Pro às estratégias de Graham, Bazin e Greenblatt já está liberado.</span>
+          </div>
+        )}
+
         {/* Live KPIs */}
-              {pagamentoSucesso && (
-                  <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm font-semibold flex items-center justify-between animate-fade-in">
-                    <span>🎉 Pagamento confirmado! Seu acesso Pro às estratégias de Graham, Bazin e Greenblatt já está liberado.</span>
-                  </div>
-                  )}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="p-5 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-md flex items-center justify-between">
             <div>
@@ -357,9 +401,9 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Barra de Pesquisa Fora do Header */}
-        <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800/80 flex flex-col md:flex-row items-center justify-between gap-4">
-          <form onSubmit={handleDirectSearch} className="relative w-full md:w-96">
+        {/* Barra de Pesquisa, Favoritas e Controle de Quantidade */}
+        <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800/80 flex flex-col lg:flex-row items-center justify-between gap-4">
+          <form onSubmit={handleDirectSearch} className="relative w-full lg:w-96">
             <input
               type="text"
               placeholder="Pesquisar qualquer ação (ex: WEGE3, VALE3, PETR4)..."
@@ -370,26 +414,62 @@ export default function Dashboard() {
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
           </form>
 
-          <div className="flex items-center gap-3 w-full md:w-auto justify-end">
-            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl">
-              <span className="text-xs text-slate-400 font-medium">Exibir:</span>
+          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
+            {/* Filtro de Favoritas */}
+            <button
+              onClick={() => setApenasFavoritos(!apenasFavoritos)}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                apenasFavoritos
+                  ? 'bg-amber-500/15 border-amber-500/50 text-amber-400 shadow-sm'
+                  : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              <Star className={`w-3.5 h-3.5 ${apenasFavoritos ? 'fill-amber-400 text-amber-400' : ''}`} />
+              Favoritas ({favoritos.length})
+            </button>
+
+            {/* Seletor de Quantidade Ampliado (até 500 + Atalhos Rápidos) */}
+            <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl">
+              <span className="text-xs text-slate-400 font-medium mr-1">Exibir:</span>
               <button 
-                onClick={() => setLimit(prev => Math.max(prev - 5, 5))}
+                onClick={() => setLimit(prev => Math.max(prev > 30 ? prev - 20 : prev - 5, 5))}
                 className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
                 title="Diminuir"
               >
                 <Minus className="w-3.5 h-3.5" />
               </button>
-              <span className="text-xs font-bold text-emerald-400 min-w-6 text-center">{limit}</span>
+              <span className="text-xs font-bold text-emerald-400 min-w-8 text-center">
+                {limit >= 500 ? 'Todas' : limit}
+              </span>
               <button 
-                onClick={() => setLimit(prev => Math.min(prev + 5, 100))}
+                onClick={() => setLimit(prev => Math.min(prev >= 30 ? prev + 20 : prev + 5, 500))}
                 className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
                 title="Aumentar"
               >
                 <Plus className="w-3.5 h-3.5" />
               </button>
+
+              <div className="h-4 w-px bg-slate-800 mx-1 hidden sm:block" />
+
+              {/* Atalhos rápidos para carregar mais ações */}
+              <div className="hidden sm:flex items-center gap-1">
+                {[15, 50, 100, 500].map((preset) => (
+                  <button
+                    key={preset}
+                    onClick={() => setLimit(preset)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition-colors ${
+                      limit === preset
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                        : 'text-slate-500 hover:text-slate-200 hover:bg-slate-800'
+                    }`}
+                  >
+                    {preset === 500 ? 'Todas' : preset}
+                  </button>
+                ))}
+              </div>
             </div>
 
+            {/* Alternador Grid / Tabela */}
             <div className="flex items-center gap-1 p-1 bg-slate-950 border border-slate-800 rounded-xl">
               <button
                 onClick={() => setViewMode('grid')}
@@ -470,84 +550,113 @@ export default function Dashboard() {
             <span className="text-sm">Computando ativos no radar...</span>
           </div>
         ) : filteredStocks.length === 0 ? (
-          <div className="h-72 flex items-center justify-center text-slate-500 border border-dashed border-slate-800 rounded-3xl">
-            Nenhum ativo localizado com os parâmetros aplicados.
+          <div className="h-72 flex flex-col items-center justify-center gap-2 text-slate-500 border border-dashed border-slate-800 rounded-3xl">
+            <span>{apenasFavoritos ? 'Nenhuma ação favoritada encontrada neste filtro.' : 'Nenhum ativo localizado com os parâmetros aplicados.'}</span>
+            {apenasFavoritos && (
+              <button
+                onClick={() => setApenasFavoritos(false)}
+                className="text-xs font-semibold text-emerald-400 hover:underline"
+              >
+                Mostrar todas as ações
+              </button>
+            )}
           </div>
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredStocks.map((stock) => (
-              <div
-                key={stock.ticker}
-                onClick={() => setRaioXModal(stock)}
-                className="group relative p-6 rounded-3xl bg-slate-900/40 hover:bg-slate-900/80 border border-slate-800/80 hover:border-emerald-500/40 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-emerald-950/20 cursor-pointer overflow-hidden"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-950 border border-slate-700/60 flex items-center justify-center font-black text-white text-sm shadow-inner group-hover:border-emerald-500/40 transition-colors">
-                      {stock.ticker.slice(0, 4)}
+            {filteredStocks.map((stock) => {
+              const isFav = favoritos.includes(stock.ticker);
+              return (
+                <div
+                  key={stock.ticker}
+                  onClick={() => setRaioXModal(stock)}
+                  className="group relative p-6 rounded-3xl bg-slate-900/40 hover:bg-slate-900/80 border border-slate-800/80 hover:border-emerald-500/40 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-emerald-950/20 cursor-pointer overflow-hidden"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-950 border border-slate-700/60 flex items-center justify-center font-black text-white text-sm shadow-inner group-hover:border-emerald-500/40 transition-colors">
+                        {stock.ticker.slice(0, 4)}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white text-base tracking-wide">
+                          {stock.ticker}
+                        </h3>
+                        <span className="text-xs text-slate-400 font-mono">B3 Ordinária/Pref</span>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-bold text-white text-base tracking-wide">
-                        {stock.ticker}
-                      </h3>
-                      <span className="text-xs text-slate-400 font-mono">B3 Ordinária/Pref</span>
+
+                    <div className="flex items-center gap-2">
+                      {stock.aprovadoBuffett ? (
+                        <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded-full">
+                          <CheckCircle2 className="w-3 h-3" /> Aprovado
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 bg-slate-950/60 border border-slate-800 px-2 py-0.5 rounded-full">
+                          <XCircle className="w-3 h-3" /> Neutro
+                        </span>
+                      )}
+
+                      {/* Botão Estrela de Favorito */}
+                      <button
+                        onClick={(e) => handleToggleFavorito(e, stock.ticker)}
+                        className="p-1.5 rounded-xl bg-slate-950/60 hover:bg-slate-800 border border-slate-800/80 transition-all cursor-pointer"
+                        title={isFav ? 'Remover dos favoritos' : 'Favoritar ação'}
+                      >
+                        <Star
+                          className={`w-4 h-4 transition-all ${
+                            isFav
+                              ? 'fill-amber-400 text-amber-400 scale-110'
+                              : 'text-slate-500 hover:text-amber-300'
+                          }`}
+                        />
+                      </button>
                     </div>
                   </div>
 
-                  {stock.aprovadoBuffett ? (
-                    <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded-full">
-                      <CheckCircle2 className="w-3 h-3" /> Aprovado
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 bg-slate-950/60 border border-slate-800 px-2 py-0.5 rounded-full">
-                      <XCircle className="w-3 h-3" /> Neutro
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex items-baseline justify-between py-2 border-b border-slate-800/60">
-                  <span className="text-xs text-slate-400">Preço Mercado</span>
-                  <span className="text-lg font-bold text-white tracking-tight">R$ {stock.cotacao?.toFixed(2)}</span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 my-4 text-center">
-                  <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800/60">
-                    <span className="text-[10px] uppercase font-bold text-slate-500 block">P/L</span>
-                    <span className="text-xs font-semibold text-slate-200">{stock.pl?.toFixed(1)}</span>
+                  <div className="flex items-baseline justify-between py-2 border-b border-slate-800/60">
+                    <span className="text-xs text-slate-400">Preço Mercado</span>
+                    <span className="text-lg font-bold text-white tracking-tight">R$ {stock.cotacao?.toFixed(2)}</span>
                   </div>
-                  <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800/60">
-                    <span className="text-[10px] uppercase font-bold text-slate-500 block">ROE</span>
-                    <span className="text-xs font-semibold text-purple-400">{stock.roe?.toFixed(1)}%</span>
-                  </div>
-                  <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800/60">
-                    <span className="text-[10px] uppercase font-bold text-slate-500 block">DY</span>
-                    <span className="text-xs font-semibold text-emerald-400">{stock.dividendYield?.toFixed(1)}%</span>
-                  </div>
-                </div>
 
-                <div className="pt-2">
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs font-medium">
-                      <span className="text-slate-400">Score Moat (Warren Buffett)</span>
-                      <span className="text-emerald-400 font-bold">{stock.scoreBuffett || 0}/100</span>
+                  <div className="grid grid-cols-3 gap-2 my-4 text-center">
+                    <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800/60">
+                      <span className="text-[10px] uppercase font-bold text-slate-500 block">P/L</span>
+                      <span className="text-xs font-semibold text-slate-200">{stock.pl?.toFixed(1)}</span>
                     </div>
-                    <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500" 
-                        style={{ width: `${stock.scoreBuffett || 0}%` }}
-                      />
+                    <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800/60">
+                      <span className="text-[10px] uppercase font-bold text-slate-500 block">ROE</span>
+                      <span className="text-xs font-semibold text-purple-400">{stock.roe?.toFixed(1)}%</span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800/60">
+                      <span className="text-[10px] uppercase font-bold text-slate-500 block">DY</span>
+                      <span className="text-xs font-semibold text-emerald-400">{stock.dividendYield?.toFixed(1)}%</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span className="text-slate-400">Score Moat (Warren Buffett)</span>
+                        <span className="text-emerald-400 font-bold">{stock.scoreBuffett || 0}/100</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500" 
+                          style={{ width: `${stock.scoreBuffett || 0}%` }}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="rounded-3xl bg-slate-900/40 border border-slate-800/80 overflow-hidden backdrop-blur-xl">
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-800 bg-slate-950/60 text-xs text-slate-400 uppercase font-semibold">
-                  <th className="py-4 px-6">Ativo</th>
+                  <th className="py-4 px-4 w-10 text-center">Fav</th>
+                  <th className="py-4 px-4">Ativo</th>
                   <th className="py-4 px-4 text-right">Cotação</th>
                   <th className="py-4 px-4 text-right">P/L</th>
                   <th className="py-4 px-4 text-right">ROE</th>
@@ -557,26 +666,46 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/50">
-                {filteredStocks.map((stock) => (
-                  <tr 
-                    key={stock.ticker} 
-                    onClick={() => setRaioXModal(stock)}
-                    className="hover:bg-slate-800/30 cursor-pointer transition-colors"
-                  >
-                    <td className="py-3.5 px-6 font-bold text-white flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                      {stock.ticker}
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-medium">R$ {stock.cotacao?.toFixed(2)}</td>
-                    <td className="py-3.5 px-4 text-right text-slate-400">{stock.pl?.toFixed(1)}</td>
-                    <td className="py-3.5 px-4 text-right text-purple-400 font-medium">{stock.roe?.toFixed(1)}%</td>
-                    <td className="py-3.5 px-4 text-right text-slate-300">{stock.roic?.toFixed(1)}%</td>
-                    <td className="py-3.5 px-4 text-right text-emerald-400 font-medium">{stock.dividendYield?.toFixed(1)}%</td>
-                    <td className="py-3.5 px-6 text-center">
-                      <span className="font-bold text-emerald-400">{stock.scoreBuffett}/100</span>
-                    </td>
-                  </tr>
-                ))}
+                {filteredStocks.map((stock) => {
+                  const isFav = favoritos.includes(stock.ticker);
+                  return (
+                    <tr 
+                      key={stock.ticker} 
+                      onClick={() => setRaioXModal(stock)}
+                      className="hover:bg-slate-800/30 cursor-pointer transition-colors"
+                    >
+                      <td className="py-3.5 px-4 text-center">
+                        <button
+                          onClick={(e) => handleToggleFavorito(e, stock.ticker)}
+                          className="p-1.5 rounded-lg hover:bg-slate-800 transition-colors inline-flex items-center justify-center"
+                          title={isFav ? 'Remover dos favoritos' : 'Favoritar ação'}
+                        >
+                          <Star
+                            className={`w-4 h-4 transition-all ${
+                              isFav
+                                ? 'fill-amber-400 text-amber-400'
+                                : 'text-slate-600 hover:text-amber-300'
+                            }`}
+                          />
+                        </button>
+                      </td>
+                      <td className="py-3.5 px-4 font-bold text-white">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                          {stock.ticker}
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-medium">R$ {stock.cotacao?.toFixed(2)}</td>
+                      <td className="py-3.5 px-4 text-right text-slate-400">{stock.pl?.toFixed(1)}</td>
+                      <td className="py-3.5 px-4 text-right text-purple-400 font-medium">{stock.roe?.toFixed(1)}%</td>
+                      <td className="py-3.5 px-4 text-right text-slate-300">{stock.roic?.toFixed(1)}%</td>
+                      <td className="py-3.5 px-4 text-right text-emerald-400 font-medium">{stock.dividendYield?.toFixed(1)}%</td>
+                      <td className="py-3.5 px-6 text-center">
+                        <span className="font-bold text-emerald-400">{stock.scoreBuffett}/100</span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -596,12 +725,27 @@ export default function Dashboard() {
                     <span className="text-xs text-slate-400">Raio-X Fundamentalista Consolidado</span>
                   </div>
                 </div>
-                <button 
-                  onClick={() => setRaioXModal(null)}
-                  className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-all"
-                >
-                  ✕
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) => handleToggleFavorito(e, raioXModal.ticker)}
+                    className="p-2 rounded-full bg-slate-800 hover:bg-slate-700 transition-all"
+                    title={favoritos.includes(raioXModal.ticker) ? 'Remover dos favoritos' : 'Favoritar ação'}
+                  >
+                    <Star
+                      className={`w-4 h-4 ${
+                        favoritos.includes(raioXModal.ticker)
+                          ? 'fill-amber-400 text-amber-400'
+                          : 'text-slate-400'
+                      }`}
+                    />
+                  </button>
+                  <button 
+                    onClick={() => setRaioXModal(null)}
+                    className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-all"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
 
               {/* Radar Chart */}
