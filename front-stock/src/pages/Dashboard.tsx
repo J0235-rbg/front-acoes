@@ -48,16 +48,19 @@ export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [raioXModal, setRaioXModal] = useState<StockRanking | null>(null);
 
+  
   const [limit, setLimit] = useState<number>(15);
   const [isPro, setIsPro] = useState<boolean>(() => {
     return localStorage.getItem('@alphascreen:isPro') === 'true';
   });
-
+  
   const [user, setUser] = useState<{ nome: string; email: string } | null>(() => {
     const saved = localStorage.getItem('@alphascreen:user');
     return saved ? JSON.parse(saved) : null;
   });
-
+  
+  const ADMIN_EMAIL = 'admin@gmail.com'; // Coloque o seu e-mail cadastrado
+  const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
   // Valida a sessão com o backend ao abrir o terminal
   useEffect(() => {
     const token = localStorage.getItem('@alphascreen:token');
@@ -319,15 +322,17 @@ export default function Dashboard() {
                 <Crown className="w-4 h-4 fill-slate-950" /> Upgrade Pro
               </button>
             )}
-
-            <button
+          
+            {isAdmin && (
+              <button
               onClick={handleSync}
               disabled={syncing}
               className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 disabled:opacity-50 text-white px-3.5 py-2 rounded-xl text-xs font-semibold transition-all active:scale-95"
-            >
+              >
               <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-emerald-400' : ''}`} />
               <span className="hidden sm:inline">{syncing ? 'Atualizando...' : 'Sincronizar'}</span>
             </button>
+            )}
 
             <div className="h-6 w-px bg-slate-800 hidden sm:block" />
 
