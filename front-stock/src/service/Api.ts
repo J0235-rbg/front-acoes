@@ -12,7 +12,7 @@ export interface AuthResponse {
 }
 
 const api = axios.create({
-  baseURL: 'http://localhost:8081/api',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8081/api',
 });
 
 // Injeta o JWT automaticamente em todas as requisições se estiver salvo
